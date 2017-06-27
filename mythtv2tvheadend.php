@@ -81,6 +81,7 @@ class mythtv {
 
 class tvheadend {
 	private $config;
+	private $config_name;
 
 	public function __construct() {
 		// Get dvr configuration
@@ -94,6 +95,7 @@ class tvheadend {
 		}
 		$json = file_get_contents($file);
 		$this->config = json_decode($json, true);
+		$this->config_name = $filename;
 	}
 	
 	public function setEntry($entry) {
@@ -148,6 +150,7 @@ class tvheadend {
 			'description' => array(
 				$lang => $entry['description'],
 			),
+			'config_name' => $this->config_name,
 			'comment' => 'mythtv',
 			'files' => array(array(
 				'filename' => $filename,
