@@ -68,7 +68,7 @@ class mythtv {
 				CONCAT("' . mysqli_real_escape_string($mysqli, $this->config['RecordFilePrefix']) . '/", recorded.basename) as filename,
 				recorded.progstart as programstart,
 				recorded.progend as programend,
-				recorded.recordedid
+				recorded.recordedid as id
 			FROM channel,recorded
 			WHERE channel.chanid = recorded.chanid AND recorded.' . $hostname
 		);
@@ -151,7 +151,7 @@ class tvheadend {
 				$lang => $entry['description'],
 			),
 			'config_name' => $this->config_name,
-			'comment' => 'mythtv',
+			'comment' => 'mythtv ' . $entry['id'],
 			'files' => array(array(
 				'filename' => $filename,
 				'start' => strtotime($entry['recordstart']),
@@ -161,7 +161,7 @@ class tvheadend {
 		$log_content = json_encode($new, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 		
 		// Write dvr log file
-		$log_filename = str_pad(dechex($entry['recordedid']),32,'0',STR_PAD_LEFT);
+		$log_filename = str_pad(dechex($entry['id']),32,'0',STR_PAD_LEFT);
 		file_put_contents('/root/.hts/tvheadend/dvr/log/' . $log_filename, $log_content);
 	}
 }
