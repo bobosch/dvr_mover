@@ -75,7 +75,10 @@ class mythtv {
 	}
 	
 	public function getEntry() {
-		return $this->result->fetch_assoc();
+		do {
+			$entry = $this->result->fetch_assoc();
+		} while ($entry && !file_exists($entry['filename']));
+		return $entry;
 	}
 }
 
