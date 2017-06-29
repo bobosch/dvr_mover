@@ -133,13 +133,15 @@ class tvheadend {
 		// Create hardlink
 		$dst_file_parts = pathinfo($filename);
 		mkdir($dst_file_parts['dirname']);
- 		link($entry['filename'], $filename);
+		link($entry['filename'], $filename);
 		
 		// Create dvr log file content
 		$new = array(
 			'enabled' => true,
 			'start' => strtotime($entry['programstart']),
+			'start_extra' => 0,
 			'stop' => strtotime($entry['programend']),
+			'stop_extra' => 0,
 			'channelname' => $entry['channelname'],
 			'title' => array(
 				$lang => $entry['title'],
@@ -150,7 +152,11 @@ class tvheadend {
 			'description' => array(
 				$lang => $entry['description'],
 			),
+			'pri' => 6,
 			'config_name' => $this->config_name,
+			'creator' => 'dvr_mover',
+			'parent' => '',
+			'child' => '',
 			'comment' => 'mythtv ' . $entry['id'],
 			'files' => array(array(
 				'filename' => $filename,
