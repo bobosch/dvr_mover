@@ -22,9 +22,12 @@ ToDo:
 $src = new mythtv();
 $dst = new tvheadend();
 
+$i=0;
 while($entry = $src->getEntry()) {
-	$dst->setEntry($entry);
+	$ok = $dst->setEntry($entry);
+	if($ok) $i++;
 }
+echo 'Linked ' . $i . 'files.';
 
 class mythtv {
 	private $config;
