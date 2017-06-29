@@ -103,6 +103,7 @@ class tvheadend {
 	
 	public function setEntry($entry) {
 		$lang = 'ger';
+		$log_path = '/root/.hts/tvheadend/dvr/log/';
 
 		if ($entry['season'] || $entry['episode']) {
 			$episode = 'S' . $entry['season'] . '-E' . $entry['episode'];
@@ -177,8 +178,14 @@ class tvheadend {
 		$log_content = json_encode($new, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 		
 		// Write dvr log file
-		$log_filename = str_pad(dechex($entry['id']),32,'0',STR_PAD_LEFT);
-		file_put_contents('/root/.hts/tvheadend/dvr/log/' . $log_filename, $log_content);
+		$log_filename = md5($log_content);
+		if(!file_exists($log_path . $log_filename)) {
+			file_put_contents($log_path . $log_filename, $log_content);
+			return true;
+		} else {
+			echo 'Log file for mythtv ' . $entry['id'] . 'exists.';
+			return false;
+		}
 	}
 }
 ?>
