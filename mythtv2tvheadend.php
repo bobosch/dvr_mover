@@ -104,6 +104,12 @@ class tvheadend {
 	public function setEntry($entry) {
 		$lang = 'ger';
 
+		if ($entry['season'] || $entry['episode']) {
+			$episode = 'S' . $entry['season'] . '-E' . $entry['episode'];
+		} else {
+			$episode = '';
+		}
+
 		// Remove all unsafe characters from filename : All characters that could possibly cause problems for filenaming will be replaced with an underscore.
 		if($this->config['clean-title']) {
 			$replace = array('/', '\\', ':');
@@ -116,7 +122,7 @@ class tvheadend {
 		$tr = array(
 			'$s' => $entry['subtitle'],
 			'$t' => $entry['title'],
-			'$e' => $entry['season'] || $entry['episode'] ? ('S' . $entry['season'] . '-E' . $entry['episode']) : '',
+			'$e' => $episode,
 			'$c' => $entry['channelname'],
 		);
 		$delimiters = array(' ','-','_','.',',',';');
@@ -161,6 +167,7 @@ class tvheadend {
 			'parent' => '',
 			'child' => '',
 			'comment' => 'mythtv ' . $entry['id'],
+			'episode' => $episode,
 			'files' => array(array(
 				'filename' => $filename,
 				'start' => strtotime($entry['recordstart']),
