@@ -3,7 +3,6 @@
 /*
 Version 0.0
 
-ToDo:
 - Command line options
   default: --mode hardlink --source mythtv --destination tvheadend
   mode: keep (point to the file location of source)
@@ -18,35 +17,101 @@ ToDo:
   destination: tvheadend
   title: Search only for recordings with specified title
 
+ToDo:
 - class tvheadend
   - detection or configuration of .hts directory
   - $lang detection or configuration
   - correct dvr log filename
 */
 
+$longopts = array(
+	'nodryrun',
+	'mode:',
+	'source:',
+	'destination:',
+	'title:',
+);
+$opt = getopt ('', $longopts);
+// nodryrun
+$run = isset($opt['nodryrun']);
+// mode
+if(!isset($opt['mode'])) $opt['mode'] = 'hardlink';
+if(!in_array($opt['mode'],array('keep','copy','move','hardlink'))) exit;
+// source
+if(!isset($opt['source'])) $opt['source'] = 'mythtv';
+if(!in_array($opt['source'],array('mythtv'))) exit;
+// destination
+if(!isset($opt['destination'])) $opt['destination'] = 'tvheadend';
+if(!in_array($opt['destination'],array('tvheadend'))) exit;
+// title
+if(!isset($opt['title'])) $opt['title'] = false;
+
+
 $src = new mythtv();
 $dst = new tvheadend();
+
+$log = array();
 
 $i = 0;
 while($entry = $src->getEntry()) {
 	$dst->setEntry($entry);
 
 	$filename = $dst->getFilename();
+	
+	if(!file_exists($filename)) {
+		if($run && in_array($opt['mode'],array('copy','move','hardlink'))) {
+			// Create destination directory if necessary
+			$dst_file_parts = pathinfo($filename);
+			if(!file_exists($dst_file_parts['dirname'])) {
+				mkdir($dst_file_parts['dirname'], 0777, true);
+			}
+		}
+		switch($opt['mode']) {
+			case 'keep':
+				// Use existing video file
+				$filename = $entry['filename'];
+				$log[] = 'using file ' . $filename;
+			break;
+			case 'copy':
+				// Create hardlink to video file
+				$log[] = 'copy file ' . $entry['filename'] . ' to ' . $filename;
+				if($run) {
+					copy($entry['filename'], $filename);
+				}
+			break;
+			case 'move':
+				// Create hardlink to video file
+				$log[] = 'move file ' . $entry['filename'] . ' to ' . $filename;
+				if($run) {
+					rename($entry['filename'], $filename);
+				}
+			break;
+			case 'hardlink':
+				// Create hardlink to video file
+				$log[] = 'hardlink file ' . $entry['filename'] . ' to ' . $filename;
+				if($run) {
+					link($entry['filename'], $filename);
+				}
+			break;
+		}
 
-	// Create destination directory if necessary
-	$dst_file_parts = pathinfo($filename);
-	if(!file_exists($dst_file_parts['dirname'])) {
-		mkdir($dst_file_parts['dirname'], 0777, true);
+		if($run) {
+ 			$ok = $dst->saveEntry($filename);
+		} else {
+			$ok = true;
+		}
+
+		if($ok) $i++;
+		else  $log[] = 'Log file for mythtv ' . $entry['id'] . 'exists.';
 	}
-	// Create hardlink
-	link($entry['filename'], $filename);
-
-	$ok = $dst->saveEntry($filename);
-
-	if($ok) $i++;
-	else echo 'Log file for mythtv ' . $entry['id'] . 'exists.';
 }
-echo 'Linked ' . $i . 'files.';
+$log[] = $opt['mode'] . ' ' . $i . ' files.' . "\n";
+
+if($run) {
+	echo implode("\n", $log);
+} else {
+	echo 'Would ' . implode("\nWould ", $log) . "Use --nodryrun to do this.\n";
+}
 
 class mythtv {
 	private $config;
