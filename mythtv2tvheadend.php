@@ -1,7 +1,7 @@
 #!/usr/bin/php
 <?php
 /*
-Version 0.0
+Version 0.1
 
 - Command line options
   default: --mode hardlink --source mythtv --destination tvheadend
