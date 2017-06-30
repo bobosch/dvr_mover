@@ -5,13 +5,18 @@ Version 0.0
 
 ToDo:
 - Command line options
-  e.g. -mode -source mythtv -destination tvheadend
-       mode: keep (point to the file location of source)
-             copy (copy file from source to destination)
-             move (move file from source to destination)
-             hardlink (create a hardlink on destination to file on source)
-             delete_missing (delete files not exists on source on destination)
-             delete_existing (delete files that exists on both on destination)
+  default: --mode hardlink --source mythtv --destination tvheadend
+  mode: keep (point to the file location of source)
+        copy (copy file from source to destination)
+        move (move file from source to destination)
+        hardlink (create a hardlink on destination to file on source)
+        delete_missing (delete files not exists on source on destination)
+        delete_existing (delete files that exists on both on destination)
+        (to synchronize use delete_missing + hardlink)
+        (to overwrite use delete_existing + hardlink)
+  source: mythtv
+  destination: tvheadend
+  title: Search only for recordings with specified title
 
 - class tvheadend
   - detection or configuration of .hts directory
@@ -22,10 +27,24 @@ ToDo:
 $src = new mythtv();
 $dst = new tvheadend();
 
-$i=0;
+$i = 0;
 while($entry = $src->getEntry()) {
-	$ok = $dst->setEntry($entry);
+	$dst->setEntry($entry);
+
+	$filename = $dst->getFilename();
+
+	// Create destination directory if necessary
+	$dst_file_parts = pathinfo($filename);
+	if(!file_exists($dst_file_parts['dirname'])) {
+		mkdir($dst_file_parts['dirname'], 0777, true);
+	}
+	// Create hardlink
+	link($entry['filename'], $filename);
+
+	$ok = $dst->saveEntry($filename);
+
 	if($ok) $i++;
+	else echo 'Log file for mythtv ' . $entry['id'] . 'exists.';
 }
 echo 'Linked ' . $i . 'files.';
 
@@ -76,7 +95,12 @@ class mythtv {
 			WHERE channel.chanid = recorded.chanid AND recorded.' . $hostname
 		);
 	}
-	
+
+	/**
+	 * Get all information of one recording
+	 *
+	 * @return array $entry Recording information
+	 */
 	public function getEntry() {
 		do {
 			$entry = $this->result->fetch_assoc();
@@ -88,10 +112,15 @@ class mythtv {
 class tvheadend {
 	private $config;
 	private $config_name;
+	private $dvr_path;
+	private $entry;
+	private $episode;
 
 	public function __construct() {
+		$this->dvr_path = '/root/.hts/tvheadend/dvr/';
+
 		// Get dvr configuration
-		$path = '/root/.hts/tvheadend/dvr/config/';
+		$path = $this->dvr_path . 'config/';
 		$dh = opendir($path);
 		while (($filename = readdir($dh)) !== false) {
 			$file = $path . $filename;
@@ -104,15 +133,28 @@ class tvheadend {
 		$this->config_name = $filename;
 	}
 	
+	/**
+	 * Store information of one recording in class and prepare some values
+	 *
+	 * @params array $entry Recording information
+	 */
 	public function setEntry($entry) {
-		$lang = 'ger';
-		$log_path = '/root/.hts/tvheadend/dvr/log/';
-
 		if ($entry['season'] || $entry['episode']) {
-			$episode = 'S' . $entry['season'] . '-E' . $entry['episode'];
+			$this->episode = 'S' . $entry['season'] . '-E' . $entry['episode'];
 		} else {
-			$episode = '';
+			$this->episode = '';
 		}
+
+		$this->entry = $entry;
+	}
+
+	/**
+	 * Get filename in new location
+	 *
+	 * @return string $filename Recording filename
+	 */
+	public function getFilename() {
+		$entry = $this->entry;
 
 		// Remove all unsafe characters from filename : All characters that could possibly cause problems for filenaming will be replaced with an underscore.
 		if($this->config['clean-title']) {
@@ -126,7 +168,7 @@ class tvheadend {
 		$tr = array(
 			'$s' => $entry['subtitle'],
 			'$t' => $entry['title'],
-			'$e' => $episode,
+			'$e' => $this->episode,
 			'$c' => $entry['channelname'],
 		);
 		$delimiters = array(' ','-','_','.',',',';');
@@ -142,40 +184,46 @@ class tvheadend {
 		$tr['%R'] = date('H:i', strtotime($entry['recordstart']));
 
 		$filename = $this->config['storage'] . '/' . strtr($this->config['pathname'], $tr);
-		
-		// Create hardlink
-		$dst_file_parts = pathinfo($filename);
-		mkdir($dst_file_parts['dirname']);
-		link($entry['filename'], $filename);
-		
+		return $filename;
+	}
+
+	/**
+	 * Save information of one recording in system
+	 *
+	 * @params string $filename Recording filename
+	 */
+	public function saveEntry($filename) {
+		$lang = 'ger';
+		$log_path = $this->dvr_path . 'log/';
+
 		// Create dvr log file content
 		$new = array(
 			'enabled' => true,
-			'start' => strtotime($entry['programstart']),
+			'start' => strtotime($this->entry['programstart']),
 			'start_extra' => 0,
-			'stop' => strtotime($entry['programend']),
+			'stop' => strtotime($this->entry['programend']),
 			'stop_extra' => 0,
-			'channelname' => $entry['channelname'],
+			'channelname' => $this->entry['channelname'],
 			'title' => array(
-				$lang => $entry['title'],
+				$lang => $this->entry['title'],
 			),
 			'subtitle' => array(
-				$lang => $entry['subtitle'],
+				$lang => $this->entry['subtitle'],
 			),
 			'description' => array(
-				$lang => $entry['description'],
+				$lang => $this->entry['description'],
 			),
 			'pri' => 6,
 			'config_name' => $this->config_name,
 			'creator' => 'dvr_mover',
 			'parent' => '',
 			'child' => '',
-			'comment' => 'mythtv ' . $entry['id'],
-			'episode' => $episode,
+			'comment' => 'mythtv ' . $this->entry['id'],
+			'episode' => $this->episode,
 			'files' => array(array(
 				'filename' => $filename,
-				'start' => strtotime($entry['recordstart']),
-				'stop' => strtotime($entry['recordend']),
+				'start' => strtotime($this->entry['recordstart']),
+				'stop' => strtotime($this->entry['recordend']),
 			))
 		);
 		$log_content = json_encode($new, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -186,7 +234,6 @@ class tvheadend {
 			file_put_contents($log_path . $log_filename, $log_content);
 			return true;
 		} else {
-			echo 'Log file for mythtv ' . $entry['id'] . 'exists.';
 			return false;
 		}
 	}
