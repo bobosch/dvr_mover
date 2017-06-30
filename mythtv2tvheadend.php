@@ -47,7 +47,7 @@ if(!in_array($opt['destination'],array('tvheadend'))) exit;
 if(!isset($opt['title'])) $opt['title'] = false;
 
 
-$src = new mythtv();
+$src = new mythtv($opt['title']);
 $dst = new tvheadend();
 
 $log = array();
@@ -117,7 +117,7 @@ class mythtv {
 	private $config;
 	private $result;
 
-	public function __construct() {
+	public function __construct($title = false) {
 		// Get database configuration
 		$xml = simplexml_load_file ('/etc/mythtv/config.xml');
 		$db = $xml->UPnP->MythFrontend->DefaultBackend;
@@ -139,8 +139,8 @@ class mythtv {
 			$this->config[$row[0]] = $row[1];
 		}
 		
-		// Select entries
-		$this->result = $mysqli->query('
+		// Build query
+		$query = '
 			SELECT
 				channel.channum as channelnumber,
 				channel.callsign as channelname,
@@ -157,8 +157,14 @@ class mythtv {
 				recorded.progend as programend,
 				recorded.recordedid as id
 			FROM channel,recorded
-			WHERE channel.chanid = recorded.chanid AND recorded.' . $hostname
-		);
+			WHERE channel.chanid = recorded.chanid AND recorded.' . $hostname;
+
+		if($title) {
+			$query .= ' AND recorded.title = "' . mysqli_real_escape_string($mysqli, $title) . '"';
+		}
+
+		// Select entries
+		$this->result = $mysqli->query($query);
 	}
 
 	/**
