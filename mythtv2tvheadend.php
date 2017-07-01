@@ -9,10 +9,7 @@ Version 0.1
         copy (copy file from source to destination)
         move (move file from source to destination)
         hardlink (create a hardlink on destination to file on source)
-        delete_missing (delete files not exists on source on destination)
-        delete_existing (delete files that exists on both on destination)
-        (to synchronize use delete_missing + hardlink)
-        (to overwrite use delete_existing + hardlink)
+        delete_missing_on_source (files not exists on destination will be deleted on source)
   source: mythtv
   destination: tvheadend
   title: Search only for recordings with specified title
@@ -36,7 +33,7 @@ $opt = getopt ('', $longopts);
 $run = isset($opt['nodryrun']);
 // mode
 if(!isset($opt['mode'])) $opt['mode'] = 'hardlink';
-if(!in_array($opt['mode'],array('keep','copy','move','hardlink'))) exit;
+if(!in_array($opt['mode'],array('keep','copy','move','hardlink','delete_missing_on_source'))) exit;
 // source
 if(!isset($opt['source'])) $opt['source'] = 'mythtv';
 if(!in_array($opt['source'],array('mythtv'))) exit;
@@ -53,12 +50,14 @@ $dst = new tvheadend();
 $log = array();
 
 $i = 0;
+$j = 0;
 while($entry = $src->getEntry()) {
 	$dst->setEntry($entry);
 
 	$filename = $dst->getFilename();
-	
+
 	if(!file_exists($filename)) {
+		// Create directory
 		if($run && in_array($opt['mode'],array('copy','move','hardlink'))) {
 			// Create destination directory if necessary
 			$dst_file_parts = pathinfo($filename);
@@ -66,6 +65,8 @@ while($entry = $src->getEntry()) {
 				mkdir($dst_file_parts['dirname'], 0777, true);
 			}
 		}
+
+		// Create file
 		switch($opt['mode']) {
 			case 'keep':
 				// Use existing video file
@@ -95,26 +96,46 @@ while($entry = $src->getEntry()) {
 			break;
 		}
 
-		if($run) {
- 			$ok = $dst->saveEntry($filename);
-		} else {
-			$ok = true;
+		// Create data
+		if(in_array($opt['mode'],array('keep','copy','move','hardlink'))) {
+			$log[] = 'create data for ' . $entry['title'];
+			if($run) {
+				$ok = $dst->saveEntry($filename);
+			}
+			if($ok || !$run) $i++;
+			else  $log[] = 'Log file for mythtv ' . $entry['id'] . 'exists.';
 		}
 
-		if($ok) $i++;
-		else  $log[] = 'Log file for mythtv ' . $entry['id'] . 'exists.';
+		// Delete data on source
+		if(in_array($opt['mode'],array('move','delete_missing_on_source'))) {
+			if($opt['mode'] == 'delete_missing_on_source') {
+				$log[] = 'delete file ' . $entry['filename'];
+				if($run) {
+					unlink($entry['filename']);
+				}
+			}
+			$log[] = 'delete data for ' . $entry['title'] . ' on source';
+			if($run) {
+				$src->deleteData($entry['id']);
+			}
+			$j++;
+		}
 	}
 }
-$log[] = $opt['mode'] . ' ' . $i . ' files.' . "\n";
+if($i) $log[] = 'create ' . $i . ' files.';
+if($j) $log[] = 'delete ' . $j . ' files.';
 
-if($run) {
-	echo implode("\n", $log);
-} else {
-	echo 'Would ' . implode("\nWould ", $log) . "Use --nodryrun to do this.\n";
+if($log) {
+	if($run) {
+		echo implode("\n", $log);
+	} else {
+		echo 'Would ' . implode("\nWould ", $log) . "\nUse --nodryrun to do this.\n";
+	}
 }
 
 class mythtv {
 	private $config;
+	private $mysqli;
 	private $result;
 
 	public function __construct($title = false) {
@@ -123,22 +144,22 @@ class mythtv {
 		$db = $xml->UPnP->MythFrontend->DefaultBackend;
 
 		// Connect to database
-		$mysqli = new mysqli((string)$db->DBHostName, (string)$db->DBUserName, (string)$db->DBPassword, (string)$db->DBName, (int)$db->DBPort);
-		if ($mysqli->connect_errno) {
-			echo "Failed to connect to MySQL: (" . $mysqli->connect_errno . ") " . $mysqli->connect_error;
+		$this->mysqli = new mysqli((string)$db->DBHostName, (string)$db->DBUserName, (string)$db->DBPassword, (string)$db->DBName, (int)$db->DBPort);
+		if ($this->mysqli->connect_errno) {
+			echo "Failed to connect to MySQL: (" . $this->mysqli->connect_errno . ") " . $this->mysqli->connect_error;
 		}
-		$mysqli->set_charset('utf8');
+		$this->mysqli->set_charset('utf8');
 
 		// Filter by hostname
-		$hostname = 'hostname="' . mysqli_real_escape_string($mysqli, gethostname()) . '"';
+		$hostname = 'hostname="' . mysqli_real_escape_string($this->mysqli, gethostname()) . '"';
 
 		// Get configuration
 		$this->config = array();
-		$result = $mysqli->query('SELECT value,data FROM settings WHERE ' . $hostname);
+		$result = $this->mysqli->query('SELECT value,data FROM settings WHERE ' . $hostname);
 		while ($row = $result->fetch_row()) {
 			$this->config[$row[0]] = $row[1];
 		}
-		
+
 		// Build query
 		$query = '
 			SELECT
@@ -152,7 +173,7 @@ class mythtv {
 				recorded.season,
 				recorded.episode,
 				recorded.category,
-				CONCAT("' . mysqli_real_escape_string($mysqli, $this->config['RecordFilePrefix']) . '/", recorded.basename) as filename,
+				CONCAT("' . mysqli_real_escape_string($this->mysqli, $this->config['RecordFilePrefix']) . '/", recorded.basename) as filename,
 				recorded.progstart as programstart,
 				recorded.progend as programend,
 				recorded.recordedid as id
@@ -160,11 +181,11 @@ class mythtv {
 			WHERE channel.chanid = recorded.chanid AND recorded.' . $hostname;
 
 		if($title) {
-			$query .= ' AND recorded.title = "' . mysqli_real_escape_string($mysqli, $title) . '"';
+			$query .= ' AND recorded.title = "' . mysqli_real_escape_string($this->mysqli, $title) . '"';
 		}
 
 		// Select entries
-		$this->result = $mysqli->query($query);
+		$this->result = $this->mysqli->query($query);
 	}
 
 	/**
@@ -177,6 +198,10 @@ class mythtv {
 			$entry = $this->result->fetch_assoc();
 		} while ($entry && !file_exists($entry['filename']));
 		return $entry;
+	}
+
+	public function deleteData($id) {
+		$this->mysqli->query('DELETE FROM recorded WHERE recordedid = ' . $id);
 	}
 }
 
