@@ -3,17 +3,6 @@
 /*
 Version 0.1
 
-- Command line options
-  default: --mode hardlink --source mythtv --destination tvheadend
-  mode: keep (point to the file location of source)
-        copy (copy file from source to destination)
-        move (move file from source to destination)
-        hardlink (create a hardlink on destination to file on source)
-        delete_missing_on_source (files not exists on destination will be deleted on source)
-  source: mythtv
-  destination: tvheadend
-  title: Search only for recordings with specified title
-
 ToDo:
 - class tvheadend
   - detection or configuration of .hts directory
@@ -22,13 +11,38 @@ ToDo:
 */
 
 $longopts = array(
+	'help',
 	'nodryrun',
 	'mode:',
 	'source:',
 	'destination:',
 	'title:',
 );
-$opt = getopt ('', $longopts);
+$opt = getopt ('h', $longopts);
+// help
+if(isset($opt['h']) || isset($opt['help'])) {
+	echo '
+Usage: dvr_mover.php [OPTIONS]
+Default: dvr_mover.php --mode hardlink --source mythtv --destination tvheadend
+
+Options:
+--help        This help text
+--nodryrun    Do not simulate (this will copy / move / delete files)
+--mode        How to process files (see section "mode")
+--source      Source system (Allowed values: mythtv)
+--destination Destination system (Allowed values: tvheadend)
+--title       Search only for recordings with specified title
+
+Mode:
+  keep        Point to the file location of source
+  copy        Copy file from source to destination
+  move        Move file from source to destination
+  hardlink    Create a hardlink on destination to file on source
+  delete_missing_on_source
+              Files not exists on destination will be deleted on source
+';
+	exit;
+}
 // nodryrun
 $run = isset($opt['nodryrun']);
 // mode
