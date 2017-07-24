@@ -68,13 +68,13 @@ $j = 0;
 while($entry = $src->getEntry()) {
 	$dst->setEntry($entry);
 
-	$filename = $dst->getFilename();
+	$path = $dst->getPath();
 
-	if(!file_exists($filename)) {
+	if(!file_exists($path)) {
 		// Create directory
 		if($run && in_array($opt['mode'],array('copy','move','hardlink'))) {
 			// Create destination directory if necessary
-			$dst_file_parts = pathinfo($filename);
+			$dst_file_parts = pathinfo($path);
 			if(!file_exists($dst_file_parts['dirname'])) {
 				mkdir($dst_file_parts['dirname'], 0777, true);
 			}
@@ -84,28 +84,28 @@ while($entry = $src->getEntry()) {
 		switch($opt['mode']) {
 			case 'keep':
 				// Use existing video file
-				$filename = $entry['filename'];
-				$log[] = 'using file ' . $filename;
+				$path = $entry['path'];
+				$log[] = 'using file "' . $path . '"';
 			break;
 			case 'copy':
 				// Create hardlink to video file
-				$log[] = 'copy file ' . $entry['filename'] . ' to ' . $filename;
+				$log[] = 'copy file "' . $entry['path'] . '" to "' . $path . '"';
 				if($run) {
-					copy($entry['filename'], $filename);
+					copy($entry['path'], $path);
 				}
 			break;
 			case 'move':
 				// Create hardlink to video file
-				$log[] = 'move file ' . $entry['filename'] . ' to ' . $filename;
+				$log[] = 'move file "' . $entry['path'] . '" to "' . $path . '"';
 				if($run) {
-					rename($entry['filename'], $filename);
+					rename($entry['path'], $path);
 				}
 			break;
 			case 'hardlink':
 				// Create hardlink to video file
-				$log[] = 'hardlink file ' . $entry['filename'] . ' to ' . $filename;
+				$log[] = 'hardlink file "' . $entry['path'] . '" to "' . $path . '"';
 				if($run) {
-					link($entry['filename'], $filename);
+					link($entry['path'], $path);
 				}
 			break;
 		}
@@ -114,7 +114,7 @@ while($entry = $src->getEntry()) {
 		if(in_array($opt['mode'],array('keep','copy','move','hardlink'))) {
 			$log[] = 'create data for ' . $entry['title'];
 			if($run) {
-				$ok = $dst->saveEntry($filename);
+				$ok = $dst->saveEntry($path);
 			}
 			if($ok || !$run) $i++;
 			else  $log[] = 'Log file for mythtv ' . $entry['id'] . 'exists.';
@@ -123,9 +123,9 @@ while($entry = $src->getEntry()) {
 		// Delete data on source
 		if(in_array($opt['mode'],array('move','delete_missing_on_source'))) {
 			if($opt['mode'] == 'delete_missing_on_source') {
-				$log[] = 'delete file ' . $entry['filename'];
+				$log[] = 'delete file ' . $entry['path'];
 				if($run) {
-					unlink($entry['filename']);
+					unlink($entry['path']);
 				}
 			}
 			$log[] = 'delete data for ' . $entry['title'] . ' on source';
@@ -141,7 +141,7 @@ if($j) $log[] = 'delete ' . $j . ' files.';
 
 if($log) {
 	if($run) {
-		echo implode("\n", $log);
+		echo implode("\n", $log) . "\n";
 	} else {
 		echo 'Would ' . implode("\nWould ", $log) . "\nUse --nodryrun to do this.\n";
 	}
@@ -187,7 +187,7 @@ class mythtv {
 				recorded.season,
 				recorded.episode,
 				recorded.category,
-				CONCAT("' . mysqli_real_escape_string($this->mysqli, $this->config['RecordFilePrefix']) . '/", recorded.basename) as filename,
+				CONCAT("' . mysqli_real_escape_string($this->mysqli, $this->config['RecordFilePrefix']) . '/", recorded.basename) as path,
 				recorded.progstart as programstart,
 				recorded.progend as programend,
 				recorded.recordedid as id
@@ -210,7 +210,7 @@ class mythtv {
 	public function getEntry() {
 		do {
 			$entry = $this->result->fetch_assoc();
-		} while ($entry && !file_exists($entry['filename']));
+		} while ($entry && !file_exists($entry['path']));
 		return $entry;
 	}
 
@@ -259,11 +259,11 @@ class tvheadend {
 	}
 
 	/**
-	 * Get filename in new location
+	 * Get path in new location
 	 *
-	 * @return string $filename Recording filename
+	 * @return string $path Recording path
 	 */
-	public function getFilename() {
+	public function getPath() {
 		$entry = $this->entry;
 
 		// Remove all unsafe characters from filename : All characters that could possibly cause problems for filenaming will be replaced with an underscore.
@@ -274,7 +274,7 @@ class tvheadend {
 		}
 
 		// Format string : The string allows you to manually specify the full path generation using predefined modifiers.
-		$src_file_parts = pathinfo($entry['filename']);
+		$src_file_parts = pathinfo($entry['path']);
 		$tr = array(
 			'$s' => $entry['subtitle'],
 			'$t' => $entry['title'],
@@ -293,16 +293,16 @@ class tvheadend {
 		$tr['%F'] = date('Y-m-d', strtotime($entry['recordstart']));
 		$tr['%R'] = date('H:i', strtotime($entry['recordstart']));
 
-		$filename = $this->config['storage'] . '/' . strtr($this->config['pathname'], $tr);
-		return $filename;
+		$path = $this->config['storage'] . '/' . strtr($this->config['pathname'], $tr);
+		return $path;
 	}
 
 	/**
 	 * Save information of one recording in system
 	 *
-	 * @params string $filename Recording filename
+	 * @params string $path Recording path
 	 */
-	public function saveEntry($filename) {
+	public function saveEntry($path) {
 		$lang = 'ger';
 		$log_path = $this->dvr_path . 'log/';
 
@@ -331,7 +331,7 @@ class tvheadend {
 			'comment' => 'mythtv ' . $this->entry['id'],
 			'episode' => $this->episode,
 			'files' => array(array(
-				'filename' => $filename,
+				'filename' => $path,
 				'start' => strtotime($this->entry['recordstart']),
 				'stop' => strtotime($this->entry['recordend']),
 			))
