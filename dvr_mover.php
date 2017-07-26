@@ -73,8 +73,8 @@ if(!in_array($opt['destination'],array('tvheadend'))) exit;
 // title
 if(!isset($opt['title'])) $opt['title'] = false;
 
-$src = new mythtv($opt);
-$dst = new tvheadend();
+$src = new $opt['source']($opt);
+$dst = new $opt['destination']($opt);
 
 $log = array();
 
@@ -167,7 +167,7 @@ class mythtv {
 	private $mysqli;
 	private $result;
 
-	public function __construct($opt = array()) {
+	public function __construct($opt) {
 		// Get database configuration
 		$xml = simplexml_load_file ('/etc/mythtv/config.xml');
 		$db = $xml->UPnP->MythFrontend->DefaultBackend;
@@ -240,8 +240,9 @@ class tvheadend {
 	private $dvr_path;
 	private $entry;
 	private $episode;
+	private $opt;
 
-	public function __construct() {
+	public function __construct($opt) {
 		$this->dvr_path = '/root/.hts/tvheadend/dvr/';
 
 		// Get dvr configuration
@@ -256,6 +257,7 @@ class tvheadend {
 		$json = file_get_contents($file);
 		$this->config = json_decode($json, true);
 		$this->config_name = $filename;
+		$this->opt = $opt;
 	}
 	
 	/**
@@ -343,7 +345,7 @@ class tvheadend {
 			'creator' => 'dvr_mover',
 			'parent' => '',
 			'child' => '',
-			'comment' => 'mythtv ' . $this->entry['id'],
+			'comment' => $this->opt['source'] . ' ' . $this->entry['id'],
 			'episode' => $this->episode,
 			'files' => array(array(
 				'filename' => $path,
