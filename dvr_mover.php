@@ -31,6 +31,8 @@ $longopts = array(
 	'nodryrun',
 	'mode:',
 	'source:',
+	'source-dir:',
+	'source-key:',
 	'destination:',
 	'title:',
 );
@@ -45,7 +47,9 @@ Options:
 --help        This help text
 --nodryrun    Do not simulate (this will copy / move / delete files)
 --mode        How to process files (see section "mode")
---source      Source system (Allowed values: mythtv)
+--source      Source system (Allowed values: files, mythtv)
+--source-dir  Path to source system
+--source-key  Password or API key for source system
 --destination Destination system (Allowed values: tvheadend)
 --title       Search only for recordings with specified title
 
@@ -66,7 +70,11 @@ if(!isset($opt['mode'])) $opt['mode'] = 'hardlink';
 if(!in_array($opt['mode'],array('keep','copy','move','hardlink','delete_missing_on_source'))) exit;
 // source
 if(!isset($opt['source'])) $opt['source'] = 'mythtv';
-if(!in_array($opt['source'],array('mythtv'))) exit;
+if(!in_array($opt['source'],array('files','mythtv'))) exit;
+// source-dir
+if(!isset($opt['source-dir'])) $opt['source-dir'] = false;
+// source-key
+if(!isset($opt['source-key'])) $opt['source-key'] = false;
 // destination
 if(!isset($opt['destination'])) $opt['destination'] = 'tvheadend';
 if(!in_array($opt['destination'],array('tvheadend'))) exit;
@@ -159,6 +167,104 @@ if($log) {
 		echo implode("\n", $log) . "\n";
 	} else {
 		echo 'Would ' . implode("\nWould ", $log) . "\nUse --nodryrun to do this.\n";
+	}
+}
+
+class files {
+	private $dh;
+	private $opt;
+
+	public function __construct($opt) {
+		if (!$opt['source-key']) {
+			echo "Please provide The Movie Database API Key with the option --source-key\n";
+			exit;
+		}
+
+		if (!$opt['source-dir']) {
+			$opt['source-dir'] = getcwd();
+		}
+		if (substr($opt['source-dir'],-1,1) != '/') {
+			$opt['source-dir'] .= '/';
+		}
+		$this->dh = opendir($opt['source-dir']);
+		$this->opt = $opt;
+	}
+
+	public function getEntry() {
+		$lang = 'de';
+		$break = false;
+		do {
+			$file = readdir($this->dh);
+			$path = $this->opt['source-dir'] . $file;
+			$entry = false;
+
+			if($file && filetype($path) == 'file') {
+				// Information from file
+				$file_time = filemtime($path);
+				$path_parts = pathinfo($file);
+				$entry = array(
+					'path' => $path,
+					'recordend' => date('Y-m-d H:i:s', $file_time),
+				);
+
+				// Information from TMDb
+				$search = $path_parts['filename'];
+				do {
+					echo "\n";
+					echo 'Search for "' . $search . '":' . "\n";
+					$params = array(
+						'api_key' => $this->opt['source-key'],
+						'language' => $lang,
+						'query' => $search,
+						'include_adult' => true,
+					);
+					$json = file_get_contents('http://api.themoviedb.org/3/search/movie?' . http_build_query($params));
+					$TMDb = json_decode($json);
+					if ($TMDb->results) {
+						foreach($TMDb->results as $key => $result) {
+							echo $key . ': ' . $result->title . "\n";
+						}
+					} else {
+						echo "No search results.\n";
+					}
+					$search = readline ('X: Exit | ENTER: Skip | Num: Choose | Text: Search | ?: ');
+				} while($search != 'X' && !empty($search) && !is_numeric($search));
+
+				if ($search == 'X') {
+					$break = true;
+					$entry = false;
+				}
+
+				if ($TMDb && is_numeric($search)) {
+					$result = $TMDb->results[$search];
+					if($result) {
+						$entry['id'] = $result->id;
+						// Movie details
+						$params = array(
+							'api_key' => $this->opt['source-key'],
+							'language' => $lang,
+						);
+						$json = file_get_contents('http://api.themoviedb.org/3/movie/' . $result->id . '?' . http_build_query($params));
+						$result = json_decode($json);
+						$entry['title'] = $result->title;
+						$add = array();
+						if($result->original_title) $add[] = strtoupper($result->original_language) . ': ' . $result->original_title;
+						if($result->release_date) $add[] = $result->release_date;
+						if($add) $entry['subtitle'] = '(' . implode(', ',$add) . ')';
+						$entry['description'] = $result->overview;
+						$entry['programstart'] = date('Y-m-d H:i:s', $file_time - ($result->runtime * 60));
+						$entry['programend'] = $entry['recordend'];
+						$entry['recordstart'] = $entry['programstart']; // ToDo
+						$break = true;
+					}
+				}
+			}
+		} while ($file && !$break);
+
+		return $entry;
+	}
+
+	public function deleteData($id) {
 	}
 }
 

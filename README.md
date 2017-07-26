@@ -1,2 +1,2 @@
 # dvr_mover
-Move recordings from mythtv to tvheadend
+Import recordings from mythtv or directory with video files in tvheadend
