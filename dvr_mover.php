@@ -272,6 +272,8 @@ class tvheadend {
 			$this->episode = '';
 		}
 
+		if (empty($entry['channelname'])) $entry['channelname'] = 'unknown';
+
 		$this->entry = $entry;
 	}
 
@@ -327,9 +329,7 @@ class tvheadend {
 		$new = array(
 			'enabled' => true,
 			'start' => strtotime($this->entry['programstart']),
-			'start_extra' => 0,
 			'stop' => strtotime($this->entry['programend']),
-			'stop_extra' => 0,
 			'channelname' => $this->entry['channelname'],
 			'title' => array(
 				$lang => $this->entry['title'],
@@ -343,8 +343,6 @@ class tvheadend {
 			'pri' => 6,
 			'config_name' => $this->config_name,
 			'creator' => 'dvr_mover',
-			'parent' => '',
-			'child' => '',
 			'comment' => $this->opt['source'] . ' ' . $this->entry['id'],
 			'episode' => $this->episode,
 			'files' => array(array(
