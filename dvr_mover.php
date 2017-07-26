@@ -8,6 +8,22 @@ ToDo:
   - detection or configuration of .hts directory
   - $lang detection or configuration
   - correct dvr log filename
+
+$entry = array(
+	'channelnumber' => 1,
+	'channelname' => 'TV',
+	'recordstart' => '2000-01-01 00:00:00',
+	'recordend' => '2001-12-31 23:59:59',
+	'title' => 'Title',
+	'subtitle' => 'Subtitle',
+	'description' => 'Description or Overview',
+	'season' => 1,
+	'episode' => 1,
+	'category' =>,
+	'path' => '/path/to/file.mpg',
+	'programstart' => '2000-01-01 10:00:00',
+	'programend' => '2000-01-01 10:30:00',
+	'id',
 */
 
 $longopts = array(
