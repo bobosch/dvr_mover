@@ -138,8 +138,10 @@ while($entry = $src->getEntry()) {
 			$log[] = 'create data for ' . $entry['title'];
 			if($run) {
 				$ok = $dst->saveEntry($path);
+			} else {
+				$ok = true;
 			}
-			if($ok || !$run) $i++;
+			if($ok) $i++;
 			else  $log[] = 'Log file for mythtv ' . $entry['id'] . 'exists.';
 		}
 
